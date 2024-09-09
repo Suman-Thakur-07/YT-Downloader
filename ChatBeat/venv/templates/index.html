@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ChatBeat - Download YouTube Videos</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            border-radius: 5px;
+        }
+        h1 {
+            color: #ff0000;
+            text-align: center;
+        }
+        .input-group {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            flex-grow: 1;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 5px 0 0 5px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #ff0000;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 0 5px 5px 0;
+        }
+        button:hover {
+            background-color: #cc0000;
+        }
+        #formatSelect {
+            display: none;
+            margin-top: 20px;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        .progress-bar {
+            width: 100%;
+            background-color: #f3f3f3;
+            border-radius: 5px;
+            margin-top: 20px;
+            display: none;
+        }
+        .progress {
+            width: 0%;
+            height: 20px;
+            background-color: #4caf50;
+            border-radius: 5px;
+            text-align: center;
+            line-height: 20px;
+            color: white;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+        #message {
+            margin-top: 20px;
+            text-align: center;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ChatBeat - Download YouTube Videos</h1>
+        <div class="input-group">
+            <input type="text" id="url" placeholder="Enter YouTube URL" required>
+            <button onclick="getFormats()">Get Formats</button>
+        </div>
+        <div id="loading" class="loading">Loading formats...</div>
+        <div id="formatSelect">
+            <select id="formatDropdown"></select>
+            <button onclick="downloadVideo()">Download</button>
+        </div>
+        <div id="message"></div>
+    </div>
+
+    <script>
+        function getFormats() {
+            const url = document.getElementById('url').value;
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('formatSelect').style.display = 'none';
+            document.getElementById('message').textContent = '';
+            
+            fetch('/get_formats', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ url }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                const dropdown = document.getElementById('formatDropdown');
+                dropdown.innerHTML = '';
+                data.formats.forEach(format => {
+                    const option = document.createElement('option');
+                    option.value = format.format_id;
+                    const filesize = format.filesize !== 'Unknown' ? `${(format.filesize / 1024 / 1024).toFixed(2)} MB` : 'Unknown size';
+                    const resolution = format.resolution !== 'Unknown' ? format.resolution : 'Audio only';
+                    const formatNote = format.format_note ? ` (${format.format_note})` : '';
+                    option.textContent = `${resolution} - ${format.ext}${formatNote} - ${filesize}`;
+                    dropdown.appendChild(option);
+                });
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('formatSelect').style.display = 'block';
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to get video formats. Please check the URL and try again.');
+                document.getElementById('loading').style.display = 'none';
+            });
+        }
+
+        function downloadVideo() {
+            const url = document.getElementById('url').value;
+            const formatId = document.getElementById('formatDropdown').value;
+            const message = document.getElementById('message');
+            
+            message.textContent = 'Downloading... Please wait.';
+
+            fetch(`/download_video/${formatId}?url=${encodeURIComponent(url)}`)
+                .then(response => {
+                    if (response.ok) {
+                        return response.blob();
+                    }
+                    throw new Error('Download failed');
+                })
+                .then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.style.display = 'none';
+                    a.href = url;
+                    a.download = 'video.mp4';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    message.textContent = 'Download completed successfully!';
+
+                    // Reset the UI after 5 seconds
+                    setTimeout(resetUI, 5000);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    message.textContent = 'Download failed. Please try again.';
+                });
+        }
+
+        function resetUI() {
+            document.getElementById('url').value = '';
+            document.getElementById('formatSelect').style.display = 'none';
+            document.getElementById('message').textContent = '';
+            document.getElementById('formatDropdown').innerHTML = '';
+        }
+    </script>
+</body>
+</html>
